@@ -9,6 +9,7 @@ using Money_Management;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace Trade
 {
@@ -18,6 +19,7 @@ namespace Trade
         static Dictionary<string, double> atr;
         static void Main(string[] args)
         {
+            string lastpair = "";
             SetApiCredentials();
             StartTransactionsStream();
 
@@ -33,21 +35,6 @@ namespace Trade
                     }
                     catch
                     {
-                        _transactionsSession.DataReceived += OnHeartbeat;
-                        bool success = _transactionReceived.WaitOne(10000);
-                        if (!success)
-                        {
-                            try
-                            {
-                                StartTransactionsStream();
-                            }
-                            catch
-                            {
-
-                            }
-                        }
-                        _transactionsSession.DataReceived -= OnHeartbeat;
-                        _transactionReceived.Release();
                     }
                 }
             }
@@ -80,6 +67,7 @@ namespace Trade
             double bet;
             double units;
             long trade = 0;
+            Stopwatch watch; 
 
             while (0 < 1)
             {
@@ -89,7 +77,25 @@ namespace Trade
                     while (0 < 1)
                     {
                         GetHourlyATR();
-                        pair = atr.Aggregate((l, r) => l.Value > r.Value ? l : r).Key;
+                        pair = atr.Where(i => !lastpair.Contains(i.Key)).Aggregate((l, r) => 
+                        {
+                            if (l.Value < 0 && r.Value > 0)
+                            {
+                                return -l.Value > r.Value ? l : r;
+                            }
+                            else if (l.Value > 0 && r.Value < 0)
+                            {
+                                return l.Value > -r.Value ? l : r;
+                            }
+                            else if (l.Value < 0 && r.Value < 0)
+                            {
+                                return -l.Value > -r.Value ? l : r;
+                            }
+                            else
+                            {
+                                return l.Value > r.Value ? l : r;
+                            }
+                        }).Key;
                         bet = betArray.CalcBet();
                         try
                         {
@@ -97,7 +103,8 @@ namespace Trade
                         }
                         catch
                         {
-                            Thread.Sleep(900000);
+                            Console.WriteLine("Checking For Smaller Spread");
+                            lastpair += pair;
                             continue;
                         }
 
@@ -110,13 +117,12 @@ namespace Trade
                         }
                         break;
                     }
+                    lastpair = pair;
                     #endregion
-                    Console.WriteLine("1");
 
                     #region OpenTrade
                     while (0 < 1)
                     {
-                        Console.WriteLine("2");
                         try
                         {
                             trade = (long)PlaceOrder((long)units, pair).Result;
@@ -124,23 +130,12 @@ namespace Trade
                         }
                         catch
                         {
-                            _transactionsSession.DataReceived += OnHeartbeat;
-                            bool success = _transactionReceived.WaitOne(10000);
-                            if (!success)
-                            {
-                                try
-                                {
-                                    StartTransactionsStream();
-                                }
-                                catch
-                                {
-
-                                }
-                            }
-                            _transactionsSession.DataReceived -= OnHeartbeat;
-                            _transactionReceived.Release();
+                            Console.WriteLine("Error!");
+                            Thread.Sleep(600000000);
                         }
                     }
+                    Console.WriteLine("units: " + units + " bet:" + betArray.CalcBet() + " risk:" + (GetSpread(pair) * 3.25) + " pair:" + pair);
+                    watch = Stopwatch.StartNew();
                     #endregion
 
                     #region CloseTrade
@@ -171,23 +166,11 @@ namespace Trade
                         }
                         catch
                         {
-                            _transactionsSession.DataReceived += OnHeartbeat;
-                            bool success = _transactionReceived.WaitOne(10000);
-                            if (!success)
-                            {
-                                try
-                                {
-                                    StartTransactionsStream();
-                                }
-                                catch
-                                {
-
-                                }
-                            }
-                            _transactionsSession.DataReceived -= OnHeartbeat;
-                            _transactionReceived.Release();
-
+                            Console.WriteLine("Error!");
+                            Thread.Sleep(600000000);
                         }
+                        watch.Stop();
+                        Console.WriteLine((double)GetTradeAsync(AccountID, trade).Result.realizedPL + " " + pair + " " + (watch.ElapsedMilliseconds / 60000));
                         break;
                     }
                     List<string> betarraynums = new List<string>();
@@ -199,21 +182,8 @@ namespace Trade
                 }
                 catch
                 {
-                    _transactionsSession.DataReceived += OnHeartbeat;
-                    bool success = _transactionReceived.WaitOne(10000);
-                    if (!success)
-                    {
-                        try
-                        {
-                            StartTransactionsStream();
-                        }
-                        catch
-                        {
-
-                        }
-                    }
-                    _transactionsSession.DataReceived -= OnHeartbeat;
-                    _transactionReceived.Release();
+                    Console.WriteLine("Error!");
+                    Thread.Sleep(600000000);
                 }
                 #endregion
             }
@@ -353,7 +323,7 @@ namespace Trade
 
         #endregion
 
-        #region Transactions
+        #region Transactions Stream
         static void SetApiCredentials()
         {
             WriteNewLine("Setting your V20 credentials ...");
@@ -367,7 +337,6 @@ namespace Trade
             WriteNewLine("Nice! Credentials are set.");
         }
 
-        #region transactions stream
         static Semaphore _transactionReceived;
         static TransactionsSession _transactionsSession;
 
@@ -397,17 +366,10 @@ namespace Trade
             _transactionReceived.Release();
         }
 
-        protected static void OnHeartbeat(TransactionsStreamResponse data)
-        {
-            if (data.IsHeartbeat())
-                _transactionReceived.Release();
-        }
-
         static void StopTransactionsStream()
         {
             _transactionsSession.StopSession();
         }
-        #endregion
 
         static void WriteNewLine(string message)
         {
