@@ -204,7 +204,7 @@ namespace Trade
                 units = units
             };
 
-            PostOrderResponse response = null;
+            PostOrderResponse response;
             
             response = await PostOrderAsync(AccountID, request);
             return response?.orderFillTransaction?.tradeOpened?.tradeID;
@@ -230,11 +230,11 @@ namespace Trade
             }
             if (atr[pair] > 0)
             {
-                risk *= 3.25;
+                risk *= 2;
             }
             else
             {
-                risk *= -3.25;
+                risk *= -2;
             }
 
             var basec = pair.Split('_')[0];
@@ -275,7 +275,7 @@ namespace Trade
             && !i.name.Contains("MXN") && !i.name.Contains("PLN") && !i.name.Contains("DKK") && !i.name.Contains("HUF") && !i.name.Contains("SEK") 
             && !i.name.Contains("CZK") && !i.name.Contains("TRY") && !i.name.Contains("NRK")))
             {
-                var param = new InstrumentCandlesParameters() { price = "M", granularity = "H1", smooth = false, count = 14 };
+                var param = new InstrumentCandlesParameters() { price = "M", granularity = "H1", smooth = false, count = 2 };
                 var candles = GetInstrumentCandlesAsync(i.name, param).Result.ToArray();
                 var pairatr = (double)(candles[candles.Length - 2].mid.c - candles[0].mid.c);
                 if (i.name.Contains("JPY"))
