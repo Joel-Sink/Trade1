@@ -1,6 +1,5 @@
 ﻿using OkonkwoOandaV20.TradeLibrary.REST;
 using System;
-using OkonkwoOandaV20.Framework;
 using OkonkwoOandaV20.TradeLibrary.REST.OrderRequest;
 using System.Collections.Generic;
 using System.Threading;
@@ -10,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using System.Collections;
 
 namespace Trade
 {
@@ -19,9 +19,8 @@ namespace Trade
         static Dictionary<string, double> atr;
         static void Main(string[] args)
         {
-            string lastpair = "";
+            List<string> lastpair = new List<string>();
             SetApiCredentials();
-            StartTransactionsStream();
 
             #region CloseAllTrades
             if (GetOpenTradesAsync(AccountID).Result.Count != 0)
@@ -77,7 +76,8 @@ namespace Trade
                     while (0 < 1)
                     {
                         GetHourlyATR();
-                        pair = atr.Where(i => !lastpair.Contains(i.Key)).Aggregate((l, r) => 
+
+                        pair = atr.Where(i => lastpair.Where((j) => j.Contains(i.Key)).Count() is 0).Aggregate((l, r) => 
                         {
                             if (l.Value < 0 && r.Value > 0)
                             {
@@ -96,6 +96,7 @@ namespace Trade
                                 return l.Value > r.Value ? l : r;
                             }
                         }).Key;
+
                         bet = betArray.CalcBet();
                         try
                         {
@@ -104,7 +105,7 @@ namespace Trade
                         catch
                         {
                             Console.WriteLine("Checking For Smaller Spread");
-                            lastpair += pair;
+                            lastpair.Add(pair+"spread");
                             continue;
                         }
 
@@ -117,7 +118,14 @@ namespace Trade
                         }
                         break;
                     }
-                    lastpair = pair;
+
+                    lastpair.Add(pair+"traded");
+                    lastpair = lastpair.Where((i) => i.Contains("traded")).ToList();
+                    if (lastpair.Count > 4)
+                    {
+                        lastpair = lastpair.Where((i) => i.Contains(pair)).ToList();
+                    }
+
                     #endregion
 
                     #region OpenTrade
@@ -131,7 +139,7 @@ namespace Trade
                         catch
                         {
                             Console.WriteLine("Error!");
-                            Thread.Sleep(600000000);
+                            Thread.Sleep(60000);
                         }
                     }
                     Console.WriteLine("units: " + units + " bet:" + betArray.CalcBet() + " risk:" + (GetSpread(pair) * 3.25) + " pair:" + pair);
@@ -167,23 +175,18 @@ namespace Trade
                         catch
                         {
                             Console.WriteLine("Error!");
-                            Thread.Sleep(600000000);
+                            Thread.Sleep(60000);
                         }
                         watch.Stop();
                         Console.WriteLine((double)GetTradeAsync(AccountID, trade).Result.realizedPL + " " + pair + " " + (watch.ElapsedMilliseconds / 60000));
                         break;
                     }
-                    List<string> betarraynums = new List<string>();
-                    foreach (var i in betArray)
-                    {
-                        betarraynums.Add(i.ToString());
-                    }
-                    File.WriteAllLines(@"C:\Users\jsink\source\repos\Trade\Trade\betarray.txt", betarraynums);
+                    File.WriteAllLines(@"C:\Users\jsink\source\repos\Trade\Trade\betarray.txt", betArray.Select((i) => i.ToString()));
                 }
                 catch
                 {
                     Console.WriteLine("Error!");
-                    Thread.Sleep(600000000);
+                    Thread.Sleep(60000);
                 }
                 #endregion
             }
@@ -326,7 +329,7 @@ namespace Trade
         #region Transactions Stream
         static void SetApiCredentials()
         {
-            WriteNewLine("Setting your V20 credentials ...");
+            Console.WriteLine("Setting your V20 credentials ...");
 
             AccountID = "101-001-14918521-001";
             var environment = EEnvironment.Practice;
@@ -334,47 +337,10 @@ namespace Trade
 
             Credentials.SetCredentials(environment, token, AccountID);
 
-            WriteNewLine("Nice! Credentials are set.");
+            Console.WriteLine("Nice! Credentials are set.");
         }
 
-        static Semaphore _transactionReceived;
-        static TransactionsSession _transactionsSession;
-
-        static void StartTransactionsStream()
-        {
-            WriteNewLine("Starting transactions stream ...");
-
-            _transactionsSession = new TransactionsSession(AccountID);
-            _transactionReceived = new Semaphore(0, 100);
-            _transactionsSession.DataReceived += OnTransactionReceived;
-
-            _transactionsSession.StartSession();
-
-            bool success = _transactionReceived.WaitOne(10000);
-
-            if (success)
-                WriteNewLine("Good news!. Transactions stream is functioning.");
-            else
-                WriteNewLine("Bad news!. Transactions stream is not functioning.");
-        }
-
-        protected static void OnTransactionReceived(TransactionsStreamResponse data)
-        {
-            if (!data.IsHeartbeat())
-                WriteNewLine("V20 notification - New account transaction: " + data.transaction.type);
-
-            _transactionReceived.Release();
-        }
-
-        static void StopTransactionsStream()
-        {
-            _transactionsSession.StopSession();
-        }
-
-        static void WriteNewLine(string message)
-        {
-            Console.WriteLine($"\n{message}");
-        }
+        
         #endregion
 
     }
