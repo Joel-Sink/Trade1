@@ -134,54 +134,31 @@ namespace Trade
                         try
                         {
                             trade = (long)PlaceOrder((long)units, pair).Result;
+                            Console.WriteLine("a");
+                            break;
+                            var order = GetTradeAsync(AccountID, trade).Result;
+                            Console.WriteLine("fine");
+                            order.stopLossOrder = new OkonkwoOandaV20.TradeLibrary.Order.StopLossOrder()
+                            {
+                                tradeID = order.id,
+                                price = order.price - (decimal)(GetSpread(pair) * 3.25)
+                            };
+                            order.takeProfitOrder = new OkonkwoOandaV20.TradeLibrary.Order.TakeProfitOrder()
+                            {
+                                tradeID = order.id,
+                                price = order.price + (decimal)(GetSpread(pair) * 3.25)
+                            };
+                            Console.ReadLine();
                             break;
                         }
-                        catch
+                        catch (Exception e)
                         {
-                            Console.WriteLine("Error!");
-                            Thread.Sleep(60000);
+                            Console.WriteLine(e.Message);
                         }
                     }
                     Console.WriteLine("units: " + units + " bet:" + betArray.CalcBet() + " risk:" + (GetSpread(pair) * 3.25) + " pair:" + pair);
                     watch = Stopwatch.StartNew();
-                    #endregion
 
-                    #region CloseTrade
-                    while (0 < 1)
-                    {
-                        if ((double)GetTradeAsync(AccountID, trade).Result.unrealizedPL > betArray.CalcBet())
-                        {
-                            try
-                            {
-                                betArray.WinTrade();
-                            }
-                            catch
-                            {
-                                betArray = new LArray(4, (double)GetAccountAsync(AccountID).Result.balance, .1);
-                            }
-                        }
-                        else if ((double)GetTradeAsync(AccountID, trade).Result.unrealizedPL < -betArray.CalcBet())
-                        {
-                            betArray.LoseTrade();
-                        }
-                        else
-                        {
-                            continue;
-                        }
-                        try
-                        {
-                            CloseOrder(trade).Wait();
-                        }
-                        catch
-                        {
-                            Console.WriteLine("Error!");
-                            Thread.Sleep(60000);
-                        }
-                        watch.Stop();
-                        Console.WriteLine((double)GetTradeAsync(AccountID, trade).Result.realizedPL + " " + pair + " " + (watch.ElapsedMilliseconds / 60000));
-                        break;
-                    }
-                    File.WriteAllLines(@"C:\Users\jsink\source\repos\Trade\Trade\betarray.txt", betArray.Select((i) => i.ToString()));
                 }
                 catch
                 {
