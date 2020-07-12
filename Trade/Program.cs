@@ -19,6 +19,8 @@ namespace Trade
         static Dictionary<string, double> atr;
         static void Main(string[] args)
         {
+            Console.WriteLine(System.DateTime.Now.DayOfWeek.Equals(new DateTime(2020, 07, 10).DayOfWeek));
+            Console.ReadLine();
             List<string> lastpair = new List<string>();
             SetApiCredentials();
 
@@ -134,10 +136,7 @@ namespace Trade
                         try
                         {
                             trade = (long)PlaceOrder((long)units, pair).Result;
-                            Console.WriteLine("a");
-                            break;
                             var order = GetTradeAsync(AccountID, trade).Result;
-                            Console.WriteLine("fine");
                             order.stopLossOrder = new OkonkwoOandaV20.TradeLibrary.Order.StopLossOrder()
                             {
                                 tradeID = order.id,
@@ -148,12 +147,17 @@ namespace Trade
                                 tradeID = order.id,
                                 price = order.price + (decimal)(GetSpread(pair) * 3.25)
                             };
-                            Console.ReadLine();
                             break;
                         }
-                        catch (Exception e)
+                        catch
                         {
-                            Console.WriteLine(e.Message);
+                            var time = System.DateTime.Now;
+                            if ((time.TimeOfDay > new TimeSpan(18, 0, 0) && time.DayOfWeek.Equals(DayOfWeek.Friday)) ||
+                                (time.TimeOfDay < new TimeSpan(18, 0, 0) && time.DayOfWeek.Equals(DayOfWeek.Sunday)) ||
+                                time.DayOfWeek.Equals(DayOfWeek.Saturday)) 
+                            {
+                                
+                            }
                         }
                     }
                     Console.WriteLine("units: " + units + " bet:" + betArray.CalcBet() + " risk:" + (GetSpread(pair) * 3.25) + " pair:" + pair);
